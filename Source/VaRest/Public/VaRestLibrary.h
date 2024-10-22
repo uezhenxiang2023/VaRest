@@ -97,6 +97,14 @@ public:
 	UFUNCTION(BlueprintPure, Category = "VaRest|Utility", meta = (DisplayName = "Get VaRest Version"))
 	static FString GetVaRestVersion();
 
+	/**
+	 * Generates a unique boundary string for multipart/form-data requests.
+	 *
+	 * @return A unique boundary string.
+	 */
+	UFUNCTION(BlueprintPure, Category = "VaRest|Utility", meta = (DisplayName = "Generate Unique Boundary"))
+	static FString GenerateUniqueBoundary();
+
 	//////////////////////////////////////////////////////////////////////////
 	// Common Network Helpers
 

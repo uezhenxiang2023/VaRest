@@ -230,6 +230,9 @@ protected:
 	/** Apply current internal setup to request and process it */
 	void ProcessRequest();
 
+	/** Log request content */
+	void LogRequestContent(const TArray<uint8>& Content);
+
 	//////////////////////////////////////////////////////////////////////////
 	// Request callbacks
 

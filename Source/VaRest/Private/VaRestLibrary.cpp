@@ -10,6 +10,7 @@
 #include "GenericPlatform/GenericPlatformHttp.h"
 #include "Interfaces/IPluginManager.h"
 #include "Misc/Base64.h"
+#include "Runtime/Core/Public/Windows/WindowsPlatformTime.h"
 
 UVaRestSettings* UVaRestLibrary::GetVaRestSettings()
 {
@@ -85,6 +86,13 @@ FString UVaRestLibrary::GetVaRestVersion()
 	const auto PluginRef = IPluginManager::Get().FindPlugin("VaRest");
 
 	return !PluginRef.IsValid() ? FString("invalid") : PluginRef->GetDescriptor().VersionName;
+}
+
+FString UVaRestLibrary::GenerateUniqueBoundary()
+{
+	// 使用 FDateTime::Now() 和 GetTicks() 生成一个相对唯一的字符串
+	FString Boundary = FString::Printf(TEXT("----VaRestBoundary_%s_%llu"), *FDateTime::Now().ToString(), FPlatformTime::Cycles64());
+	return Boundary;
 }
 
 FVaRestURL UVaRestLibrary::GetWorldURL(UObject* WorldContextObject)

@@ -14,6 +14,7 @@
 #include "Interfaces/IHttpResponse.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
+#include "Misc/FileHelper.h"
 
 FString UVaRestRequestJSON::DeprecatedResponseString(TEXT("DEPRECATED: Please use GetResponseContentAsString() instead"));
 
@@ -288,6 +289,32 @@ void UVaRestRequestJSON::ApplyURL(const FString& Url, UVaRestJsonObject*& Result
 	ProcessRequest();
 }
 
+void UVaRestRequestJSON::LogRequestContent(const TArray<uint8>& Content)
+{
+	FString ContentStr;
+	for (uint8 Byte : Content)
+	{
+		if (Byte >= 32 && Byte <= 126) // 可打印字符
+		{
+			ContentStr.AppendChar((TCHAR)Byte);
+		}
+		else if (Byte == '\r')
+		{
+			ContentStr.Append(TEXT("\\r"));
+		}
+		else if (Byte == '\n')
+		{
+			ContentStr.Append(TEXT("\\n"));
+		}
+		else
+		{
+			ContentStr.Append(FString::Printf(TEXT("[%02X]"), Byte));
+		}
+	}
+
+	UE_LOG(LogVaRest, Warning, TEXT("Request Content:\n%s"), *ContentStr);
+}
+
 void UVaRestRequestJSON::ExecuteProcessRequest()
 {
 	if (HttpRequest->GetURL().Len() == 0)
@@ -334,6 +361,84 @@ void UVaRestRequestJSON::ProcessRequest()
 	// Set content-type
 	switch (RequestContentType)
 	{
+	case EVaRestRequestContentType::form_data:
+	{
+		// 1. 创建 HTTP 请求体边界
+		FString Boundary = UVaRestLibrary::GenerateUniqueBoundary();
+
+		HttpRequest->SetHeader(TEXT("Content-Type"), FString::Printf(TEXT("multipart/form-data; boundary=%s"), *Boundary));
+	
+		UE_LOG(LogVaRest, Log, TEXT("Request (form_data): %s %s"), *HttpRequest->GetVerb(), *HttpRequest->GetURL());
+
+		// 2. 创建 TArray<uint8> 存储最终请求体数据
+		TArray<uint8> FinalRequestContent;
+
+		// 3. 处理 JSON 对象中的字段
+		if (RequestJsonObj)
+		{
+			// 获取 "files" 数组并保存为TArray
+			const TArray<UVaRestJsonValue*>& FilesArray = RequestJsonObj->GetArrayField("files");
+			const int32 TotalFiles = FilesArray.Num();
+
+			UE_LOG(LogVaRest, Warning, TEXT("Total files count: %d"), TotalFiles);
+
+			// 使用.操作符来访问数组
+			for (int32 i = 0; i < FilesArray.Num(); ++i)
+			{
+				// 从数组元素获取JsonObject
+				UVaRestJsonValue* JsonValue = FilesArray[i];
+				if (!JsonValue)
+					//UE_LOG(LogVaRest, Error, TEXT("Invalid JsonValue at index [%d]"), i);
+					continue;
+
+				UVaRestJsonObject* FileObject = JsonValue->AsObject();
+				if (!FileObject)
+					//UE_LOG(LogVaRest, Error, TEXT("Invalid FileObject at index [%d]"), i);
+					continue;
+
+				// 提取filepath字段
+				FString FilePath = FileObject->GetStringField("filepath");
+
+				// 加载文件数据
+				TArray<uint8> FileData;
+				if (!FFileHelper::LoadFileToArray(FileData, *FilePath))
+				{
+					UE_LOG(LogVaRest, Error, TEXT("Failed to load file: %s"), *FilePath);
+					continue;
+				}
+
+				const FString FileName = FPaths::GetCleanFilename(FilePath);
+				const int32 FileSizeKB = FileData.Num() / 1024;
+				UE_LOG(LogVaRest, Warning, TEXT("[%d/%d] Processing file: %s (Size: %d KB)"),
+					i + 1, TotalFiles, *FileName, FileSizeKB);
+
+				// 构建multipart/form-data请求体
+
+				const FString BeginBoundary = (i == 0) ? 
+					FString::Printf(TEXT("--%s\r\n"), *Boundary) :
+					FString::Printf(TEXT("\r\n--%s\r\n"), *Boundary);
+
+				const FString ContentDisposition = "Content-Disposition: form-data; name=\"files\"; filename=\"" + FileName + "\"\r\n";
+
+				FString ContentType = "Content-Type: application/octet-stream\r\n\r\n";
+
+				// 按顺序添加所有部分到最终请求体
+				FinalRequestContent.Append((uint8*)TCHAR_TO_UTF8(*BeginBoundary), BeginBoundary.Len());
+				FinalRequestContent.Append((uint8*)TCHAR_TO_UTF8(*ContentDisposition), ContentDisposition.Len());
+				FinalRequestContent.Append((uint8*)TCHAR_TO_UTF8(*ContentType), ContentType.Len());
+				FinalRequestContent.Append(FileData);
+			}
+
+			// 添加最终结束边界
+			FString FinalEndBoundary = "\r\n--" + Boundary + "--\r\n";
+
+			FinalRequestContent.Append((uint8*)TCHAR_TO_UTF8(*FinalEndBoundary), FinalEndBoundary.Len());
+
+			// 设置请求内容
+			HttpRequest->SetContent(FinalRequestContent);
+		}
+		break;
+	};
 	case EVaRestRequestContentType::x_www_form_urlencoded_url:
 	{
 		HttpRequest->SetHeader(TEXT("Content-Type"), TEXT("application/x-www-form-urlencoded"));
