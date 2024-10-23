@@ -18,12 +18,13 @@ enum class EVaRestRequestVerb : uint8
 	CUSTOM
 };
 
+
 // clang-format off
 /** Content type (json, urlencoded, etc.) used by the request */
 UENUM(BlueprintType)
 enum class EVaRestRequestContentType : uint8
 {
-	form_data					UMETA(DisplayName = "form-data"),
+	form_data                   UMETA(DisplayName = "form-data"),
 	x_www_form_urlencoded_url	UMETA(DisplayName = "x-www-form-urlencoded (URL)"),
 	x_www_form_urlencoded_body	UMETA(DisplayName = "x-www-form-urlencoded (Request Body)"),
 	json,

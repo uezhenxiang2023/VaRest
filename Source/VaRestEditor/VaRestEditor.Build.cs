@@ -7,7 +7,7 @@ public class VaRestEditor : ModuleRules
 	public VaRestEditor(ReadOnlyTargetRules Target) : base(Target)
 	{
         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
-        DefaultBuildSettings = BuildSettingsVersion.V5;
+        IncludeOrderVersion = EngineIncludeOrderVersion.Latest;
 		
 		PrivateIncludePaths.AddRange(
 			new string[] {
